@@ -4,7 +4,7 @@
 # Переменные
 BINARY_NAME = clipsync
 BUILD_DIR = build
-CMD_PATH = ./cmd/clipsync
+CMD_PATH = ./cmd/app/
 SERVICE_NAME = clipsync
 
 # Определяем ОС
