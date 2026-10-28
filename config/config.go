@@ -10,7 +10,7 @@ import (
 const DefaultConfigPath = "./config/config.json"
 
 type Config struct {
-	Peers  []string `json:"addr"`
+	Peers  []string `json:"peers"`
 	Listen string   `json:"listen"`
 }
 
