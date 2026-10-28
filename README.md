@@ -63,24 +63,24 @@ make clean
 
 **Linux (CachyOS / Niri):**
 ```bash
-go build -o clipsync ./cmd/clipsync
+go build -o clipsync ./cmd/app
 ```
 
 **Windows (из PowerShell):**
 ```powershell
-go build -o clipsync.exe .\cmd\clipsync
+go build -o clipsync.exe .\cmd\app
 ```
 
 **Кросс-компиляция (например, собрать для Windows с Linux):**
 ```bash
-GOOS=windows GOARCH=amd64 go build -o clipsync.exe ./cmd/clipsync
+GOOS=windows GOARCH=amd64 go build -o clipsync.exe ./cmd/app
 ```
 
 ## Конфигурация
 
 Конфиг по умолчанию находится в системной директории:
-- **Linux:** `~/.config/clipsync/config.json`
-- **Windows:** `%APPDATA%\clipsync\config.json`
+- **Linux:** `~/.config/ClipSync/config.json`
+- **Windows:** `%APPDATA%\ClipSync\config.json`
 
 Можно указать свой путь через флаг `-config`:
 ```bash
@@ -128,10 +128,10 @@ sudo make install-service
 Или вручную:
 ```bash
 # Создать директорию для конфига
-mkdir -p ~/.config/clipsync
+mkdir -p ~/.config/ClipSync
 
 # Создать конфиг
-nano ~/.config/clipsync/config.json
+nano ~/.config/ClipSync/config.json
 
 # Создать systemd-сервис
 mkdir -p ~/.config/systemd/user/
@@ -174,16 +174,18 @@ journalctl --user -u clipsync -f
 ## Архитектура
 
 ```
-cmd/clipsync/
+cmd/app/
 └── main.go              # Точка входа, связывает все компоненты
+
+config/
+└──config.go             # Загрузка и валидация конфигурации
 
 internal/
 ├── clipboard/
 │   ├── clipboard.go         # Интерфейс Clipboard
 │   ├── clipboard_windows.go # Реализация для Windows
 │   └── clipboard_wayland.go # Реализация для Wayland
-├── config/
-│   └── config.go            # Загрузка и валидация конфигурации
+│ 
 └── network/
     ├── protocol.go          # Бинарный протокол сообщений
     └── peer.go              # P2P-менеджер соединений
