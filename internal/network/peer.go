@@ -39,6 +39,11 @@ func (p *Peer) SendMessage(msg Message) error {
 	hashStr := hex.EncodeToString(hash[:])
 
 	p.mu.Lock()
+	if hashStr == p.lastHash {
+		p.mu.Unlock()
+		return nil
+	}
+
 	p.lastHash = hashStr
 	connsCopy := make(map[string]net.Conn, len(p.conns))
 	for addr, conn := range p.conns {
@@ -52,7 +57,7 @@ func (p *Peer) SendMessage(msg Message) error {
 
 	for addr, conn := range connsCopy {
 		if err := WriteMessage(conn, msg); err != nil {
-			log.Printf("network - peer - SendMessage - Error sending message: %v", err)
+			fmt.Errorf("network - peer - SendMessage - Error sending message: %v", err)
 		} else {
 			log.Printf("network - peer - SendMessage - Message sent to %s.", addr)
 		}

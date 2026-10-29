@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 )
@@ -38,6 +39,8 @@ func initConfig(path string) error {
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		return fmt.Errorf("config - initConfig - WriteFile %s: %w", path, err)
 	}
+
+	log.Printf("Default config created at %s", path)
 
 	return nil
 }

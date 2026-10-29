@@ -2,13 +2,10 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"flag"
 	"log"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -27,7 +24,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
-	log.Printf("Starting WeAreClipboard | Listen: %s | Peers: %v", cfg.Listen, cfg.Peers)
+	log.Printf("Starting ClipSync | Listen: %s | Peers: %v", cfg.Listen, cfg.Peers)
 
 	// 3. Инициализация менеджера буфера обмена (выберет реализацию под ОС)
 	cb := clipboard.NewManager()
@@ -48,42 +45,17 @@ func main() {
 	peer := network.NewPeer(cfg.Listen, cfg.Peers)
 	go peer.Run(ctx)
 
-	// Состояние для предотвращения эха и циклов
-	var (
-		lastHash         string
-		isInternalUpdate bool
-		mu               sync.Mutex
-	)
-
-	// 6. Горутина: Сеть -> Локальный буфер обмена
+	// Горутина 6: Сеть → Буфер обмена
 	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case msg := <-peer.MessageChan():
-				hash := sha256.Sum256(msg.Payload)
-				hashStr := hex.EncodeToString(hash[:])
-
-				mu.Lock()
-				if hashStr == lastHash {
-					mu.Unlock()
-					continue // Это эхо нашего же сообщения, игнорируем
-				}
-				// Помечаем, что следующее изменение локального буфера — это наше собственное действие
-				isInternalUpdate = true
-				lastHash = hashStr
-				mu.Unlock()
-
-				log.Printf("📥 Received from network, writing to clipboard (hash: %s)", hashStr[:8])
-				if err := cb.Write(msg.Payload); err != nil {
-					log.Printf("⚠️ Failed to write to clipboard: %v", err)
-				}
+		for msg := range peer.MessageChan() {
+			log.Printf("Received from network, writing to clipboard")
+			if err := cb.Write(msg.Payload); err != nil {
+				log.Printf("Failed to write to clipboard: %v", err)
 			}
 		}
 	}()
 
-	// 7. Горутина: Локальный буфер обмена -> Сеть
+	// Горутина 2: Буфер обмена → Сеть
 	go func() {
 		ticker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()
@@ -95,44 +67,21 @@ func main() {
 			case <-ticker.C:
 				data, err := cb.Read()
 				if err != nil || len(data) == 0 {
-					continue // Буфер пуст или ошибка чтения, ждём следующего тика
-				}
-
-				hash := sha256.Sum256(data)
-				hashStr := hex.EncodeToString(hash[:])
-
-				mu.Lock()
-				internal := isInternalUpdate
-				if internal {
-					// Сбрасываем флаг, так как мы уже обработали это изменение
-					isInternalUpdate = false
-				}
-				mu.Unlock()
-
-				if internal {
-					// Это изменение вызвано нашей же записью из сети, не отправляем его обратно
-					lastHash = hashStr
 					continue
 				}
 
-				if hashStr == lastHash {
-					continue // Буфер не изменился
-				}
-
-				// Буфер изменился пользователем, отправляем в сеть
-				lastHash = hashStr
-				log.Printf("📤 Local clipboard changed, sending to network (hash: %s)", hashStr[:8])
-
-				// Ошибки внутри SendMessage уже залогированы, нам достаточно знать, что попытка была
-				_ = peer.SendMessage(network.Message{
+				err = peer.SendMessage(network.Message{
 					MIME:    "text/plain",
 					Payload: data,
 				})
+				if err != nil {
+					log.Printf("Failed to send message: %v", err)
+				}
 			}
 		}
 	}()
 
 	// 8. Блокировка основного потока до отмены контекста
 	<-ctx.Done()
-	log.Println("WeAreClipboard stopped gracefully.")
+	log.Println("ClipSync stopped gracefully.")
 }
