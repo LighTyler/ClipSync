@@ -14,6 +14,34 @@ type Config struct {
 	Listen string   `json:"listen"`
 }
 
+// createDefaultConfig создаёт файл конфигурации с дефолтными значениями
+func initConfig(path string) error {
+	// Создаём директорию, если её нет
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("config - initConfig - MkdirAll %s: %w", dir, err)
+	}
+
+	// Дефолтный конфиг
+	defaultCfg := Config{
+		Listen: ":9090",
+		Peers:  []string{},
+	}
+
+	// Сериализуем с форматированием
+	data, err := json.MarshalIndent(defaultCfg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("config - initConfig - MarshalIndent: %w", err)
+	}
+
+	// Записываем в файл
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("config - initConfig - WriteFile %s: %w", path, err)
+	}
+
+	return nil
+}
+
 // GetDefaultConfigPath возвращает правильный путь к конфигу в зависимости от ОС
 func GetDefaultConfigPath() string {
 	configDir, err := os.UserConfigDir()
@@ -32,10 +60,23 @@ func NewConfig(path string) (*Config, error) {
 	cfg := &Config{}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("config - NewConfig - ReadFile: %w", err)
+		// Если файл не найден — создаём дефолтный
+		if os.IsNotExist(err) {
+			if createErr := initConfig(path); createErr != nil {
+				return nil, fmt.Errorf("config - LoadConfig - failed to create default config: %w", createErr)
+			}
+			// Читаем только что созданный файл
+			data, err = os.ReadFile(path)
+			if err != nil {
+				return nil, fmt.Errorf("config - LoadConfig - ReadFile %s after creation: %w", path, err)
+			}
+		} else {
+			return nil, fmt.Errorf("config - LoadConfig - ReadFile %s: %w", path, err)
+		}
 	}
+
 	if err = json.Unmarshal(data, cfg); err != nil {
-		return nil, fmt.Errorf("config - NewConfig - Unmarshal: %w", err)
+		return nil, fmt.Errorf("config - LoadConfig - Unmarshal: %w", err)
 	}
 	return cfg, nil
 }
